@@ -42,10 +42,31 @@ npm start
 # open http://localhost:8080
 ```
 
+### CSV Data Import
+
+Place your CSV file as `incidents.csv` in the project root with these columns:
+- postal_code
+- block
+- location  
+- date reported
+- incident summary
+- source url
+
+Example CSV format:
+```csv
+postal_code,block,location,date reported,incident summary,source url
+079903,10,"Anson Road, International Plaza, Singapore 079903",2024-07-12,"Fender-bender at carpark entrance",https://example.com/source
+```
+
+Then run:
+```bash
+npm run migrate  # This will parse incidents.csv and populate the database
+```
+
 API:
 
 ```http
-GET /api/accidents?address=<address>
+GET /api/incidents?postal_code=<6-digit-postal-code>
 ```
 
 

@@ -7,103 +7,123 @@ const Database = require('better-sqlite3');
 const DB_PATH = path.join(__dirname, '..', 'data.sqlite');
 const db = new Database(DB_PATH);
 
+// Updated schema to match CSV columns
 db.exec(`
-CREATE TABLE IF NOT EXISTS accidents (
+CREATE TABLE IF NOT EXISTS incidents (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  address TEXT NOT NULL,
-  address_normalized TEXT NOT NULL,
-  date TEXT NOT NULL,
-  severity TEXT NOT NULL,
-  description TEXT NOT NULL,
-  source TEXT NOT NULL
+  postal_code TEXT NOT NULL,
+  block TEXT NOT NULL,
+  location TEXT NOT NULL,
+  date_reported TEXT NOT NULL,
+  incident_summary TEXT NOT NULL,
+  source_url TEXT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_accidents_address_norm ON accidents(address_normalized);
-CREATE INDEX IF NOT EXISTS idx_accidents_date ON accidents(date);
+CREATE INDEX IF NOT EXISTS idx_incidents_postal_code ON incidents(postal_code);
+CREATE INDEX IF NOT EXISTS idx_incidents_location ON incidents(location);
+CREATE INDEX IF NOT EXISTS idx_incidents_date ON incidents(date_reported);
+CREATE INDEX IF NOT EXISTS idx_incidents_block ON incidents(block);
 `);
 
-const normalize = (s) => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+// CSV parsing function with proper comma handling
+function parseCSV(csvContent) {
+    const lines = csvContent.split('\n').filter(line => line.trim());
+    const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
 
-// Seed data mirrors the original in-memory dataset
-const seed = [
-    {
-        address: '10 Anson Road, International Plaza, Singapore 079903',
-        date: '2024-07-12',
-        severity: 'Minor',
-        description: 'Fender-bender at carpark entrance, no injuries reported.',
-        source: 'Traffic police summary'
-    },
-    {
-        address: '10 Anson Road, International Plaza, Singapore 079903',
-        date: '2023-11-03',
-        severity: 'Moderate',
-        description: 'Two-vehicle collision along Anson Rd near loading bay.',
-        source: 'Public report'
-    },
-    {
-        address: '1 North Bridge Road, High Street Centre, Singapore 179094',
-        date: '2022-05-19',
-        severity: 'Minor',
-        description: 'Cyclist skidded due to wet surface, treated on scene.',
-        source: 'Ambulance dispatch log'
-    },
-    {
-        address: '1 North Bridge Road, High Street Centre, Singapore 179094',
-        date: '2024-02-28',
-        severity: 'Major',
-        description: 'Multi-vehicle pile-up during peak hour; 3 hospitalized.',
-        source: 'Media report'
-    },
-    {
-        address: '50 Jurong Gateway Road, JEM, Singapore 608549',
-        date: '2021-09-08',
-        severity: 'Moderate',
-        description: 'Rear-end collision near taxi stand.',
-        source: 'Traffic police summary'
-    },
-    {
-        address: '18 Marina Gardens Drive, Gardens by the Bay, Singapore 018953',
-        date: '2024-12-01',
-        severity: 'Minor',
-        description: 'Pedestrian tripped near crosswalk; assisted by staff.',
-        source: 'Venue incident log'
-    },
-    {
-        address: '3155 Commonwealth Ave W, The Clementi Mall, Singapore 129588',
-        date: '2023-03-22',
-        severity: 'Minor',
-        description: 'Light collision at mall drop-off point.',
-        source: 'Security report'
-    },
-    {
-        address: '1 Raffles Place, One Raffles Place, Singapore 048616',
-        date: '2022-10-14',
-        severity: 'Major',
-        description: 'Collision involving motorcycle; road closed briefly.',
-        source: 'Media report'
+    const records = [];
+    for (let i = 1; i < lines.length; i++) {
+        const line = lines[i];
+        const values = parseCSVLine(line);
+        if (values.length >= 5) {
+            const postalCode = values[0] || '';
+            // Skip records with empty postal_code
+            if (!postalCode.trim()) {
+                console.log(`Skipping record ${i + 1}: empty postal_code`);
+                continue;
+            }
+            records.push({
+                postal_code: postalCode,
+                block: values[1] || '',
+                location: values[2] || '',
+                date_reported: values[3] || '',
+                incident_summary: values[4] || '',
+                source_url: values[5] || ''
+            });
+        }
     }
-];
+    return records;
+}
+
+// Helper function to parse CSV line respecting quoted fields
+function parseCSVLine(line) {
+    const result = [];
+    let current = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+
+        if (char === '"') {
+            inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+            result.push(current.trim());
+            current = '';
+        } else {
+            current += char;
+        }
+    }
+
+    // Add the last field
+    result.push(current.trim());
+
+    // Remove quotes from each field
+    return result.map(field => field.replace(/^"(.*)"$/, '$1'));
+}
+
+// Check for CSV file
+const CSV_PATH = path.join(__dirname, '..', 'hdb_incidents.csv');
+
+let records = [];
+
+if (fs.existsSync(CSV_PATH)) {
+    console.log('Found hdb_incidents.csv, parsing...');
+    const csvContent = fs.readFileSync(CSV_PATH, 'utf8');
+    records = parseCSV(csvContent);
+    console.log(`Parsed ${records.length} records from CSV`);
+} else {
+    console.log('No hdb_incidents.csv found, using sample data...');
+    // Sample data in new format
+
+}
 
 const insert = db.prepare(`
-INSERT INTO accidents (address, address_normalized, date, severity, description, source)
-VALUES (@address, @address_normalized, @date, @severity, @description, @source)
+INSERT INTO incidents (postal_code, block, location, date_reported, incident_summary, source_url)
+VALUES (@postal_code, @block, @location, @date_reported, @incident_summary, @source_url)
 `);
 
 const trx = db.transaction((rows) => {
-    db.exec('DELETE FROM accidents;');
+    console.log('Clearing existing incidents from database...');
+    const deleteCount = db.prepare('SELECT COUNT(*) AS count FROM incidents').get().count;
+    console.log(`Found ${deleteCount} existing incidents to delete`);
+
+    db.exec('DELETE FROM incidents;');
+    console.log('Successfully cleared all incidents from database');
+
+    console.log(`Inserting ${rows.length} new incidents...`);
     for (const r of rows) {
         insert.run({
-            address: r.address,
-            address_normalized: normalize(r.address),
-            date: r.date,
-            severity: r.severity,
-            description: r.description,
-            source: r.source
+            postal_code: r.postal_code,
+            block: r.block,
+            location: r.location,
+            date_reported: r.date_reported,
+            incident_summary: r.incident_summary,
+            source_url: r.source_url
         });
     }
+    console.log(`Successfully inserted ${rows.length} incidents`);
 });
 
-trx(seed);
+trx(records);
 
-console.log('Migration + seed complete. Rows:', db.prepare('SELECT COUNT(*) AS c FROM accidents').get().c);
+console.log('Migration + seed complete. Rows:', db.prepare('SELECT COUNT(*) AS c FROM incidents').get().c);
 
 

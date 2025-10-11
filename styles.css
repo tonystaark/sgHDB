@@ -85,12 +85,33 @@ input[type="text"] {
 
 .result-container { margin-top: 24px; }
 
+.summary-header {
+  background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  padding: 16px;
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.summary-header h3 {
+  margin: 0;
+  color: var(--accent);
+  font-size: 18px;
+}
+
 .record-card {
   background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
   border: 1px solid var(--border);
   border-radius: 14px;
   box-shadow: var(--shadow);
   padding: 16px;
+  margin-bottom: 16px;
+}
+
+.record-card:last-child {
+  margin-bottom: 0;
 }
 
 .record-grid {
