@@ -1,0 +1,22 @@
+{
+  "name": "sg-hdb-accident-lookup",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "serve": "python3 -m http.server 8000",
+    "start": "node server.js",
+    "migrate": "node scripts/migrate.js",
+    "obfuscate": "javascript-obfuscator script.js --output script.obf.js --compact true --control-flow-flattening true --dead-code-injection true --string-array true --string-array-encoding base64 --string-array-threshold 0.75 --split-strings true --unicode-escape-sequence true",
+    "minify": "npx terser script.js -c -m -o script.min.js"
+  },
+  "devDependencies": {
+    "javascript-obfuscator": "^4.1.1",
+    "terser": "^5.36.0"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.8.1",
+    "express": "^4.19.2"
+  }
+}
+
+

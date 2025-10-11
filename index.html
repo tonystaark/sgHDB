@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SG Address Accident Lookup</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container">
+      <h1 class="site-title">SG Address Accident Lookup</h1>
+      <p class="site-subtitle">Search one Singapore address at a time to view the most recent recorded accident from the in-page dataset.</p>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="search-section" aria-labelledby="search-heading">
+      <h2 id="search-heading" class="sr-only">Search</h2>
+      <form id="search-form" novalidate>
+        <label for="address-input" class="input-label">Singapore Address</label>
+        <div class="input-row">
+          <input id="address-input" name="address" type="text" inputmode="text" autocomplete="street-address" placeholder="e.g. 10 Anson Road" required aria-required="true" aria-describedby="input-help">
+          <button type="submit" class="btn btn-primary">Search</button>
+        </div>
+        <p id="input-help" class="help-text">Enter one address. We will show the latest accident on record from the dataset below.</p>
+      </form>
+      <div id="feedback" role="status" aria-live="polite" class="feedback" hidden></div>
+    </section>
+
+    <section class="result-section" aria-labelledby="result-heading">
+      <h2 id="result-heading" class="sr-only">Result</h2>
+      <div id="result-container" class="result-container" aria-live="polite"></div>
+    </section>
+
+    <!-- Dataset removed from DOM; now embedded in script for non-DOM storage. -->
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <p>Data is embedded in-page for demo purposes. This site is mobile-responsive.</p>
+    </div>
+  </footer>
+
+  <script>
+  (function(){
+    var primary = document.createElement('script');
+    primary.src = './script.js';
+    primary.defer = true;
+    primary.onerror = function(){
+      var fallback = document.createElement('script');
+      fallback.src = './script.js';
+      fallback.defer = true;
+      document.body.appendChild(fallback);
+    };
+    document.body.appendChild(primary);
+  })();
+  </script>
+</body>
+</html>
+
+
