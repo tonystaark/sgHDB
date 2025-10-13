@@ -12,31 +12,103 @@
 <body>
   <header class="site-header">
     <div class="container">
-      <h1 class="site-title">SG Postal Code Incident Lookup</h1>
-      <p class="site-subtitle">Search by Singapore postal code to view the most recent recorded incident.</p>
+      <div class="header-content">
+        <div>
+          <h1 class="site-title">SG Postal Code Incident Lookup</h1>
+          <p class="site-subtitle">Search by Singapore postal code to view the most recent recorded incident.</p>
+        </div>
+        <div class="header-actions" id="header-actions">
+          <!-- Dynamic content based on auth state -->
+        </div>
+      </div>
     </div>
   </header>
 
   <main class="container">
-    <section class="search-section" aria-labelledby="search-heading">
-      <h2 id="search-heading" class="sr-only">Search</h2>
-      <form id="search-form" novalidate>
-        <label for="address-input" class="input-label">Singapore Postal Code</label>
-        <div class="input-row">
-          <input id="address-input" name="postal_code" type="text" inputmode="numeric" autocomplete="postal-code" placeholder="e.g. 079903" required aria-required="true" aria-describedby="input-help">
-          <button type="submit" class="btn btn-primary">Search</button>
+    <!-- Auth Modal -->
+    <div id="auth-modal" class="modal" hidden>
+      <div class="modal-content">
+        <span class="close-modal" id="close-modal">&times;</span>
+        <h2 id="auth-modal-title">Login</h2>
+        <div id="auth-error" class="error-message" hidden></div>
+
+        <form id="auth-form">
+          <div class="form-group">
+            <label for="auth-email">Email</label>
+            <input type="email" id="auth-email" required>
+          </div>
+          <div class="form-group">
+            <label for="auth-password">Password</label>
+            <input type="password" id="auth-password" minlength="8" required>
+          </div>
+          <button type="submit" class="btn btn-primary" id="auth-submit">Login</button>
+        </form>
+
+        <p class="auth-toggle">
+          <span id="auth-toggle-text">Don't have an account?</span>
+          <a href="#" id="auth-toggle-link">Sign up</a>
+        </p>
+      </div>
+    </div>
+
+    <!-- Pricing Modal -->
+    <div id="pricing-modal" class="modal" hidden>
+      <div class="modal-content">
+        <span class="close-modal" id="close-pricing-modal">&times;</span>
+        <h2>Choose Your Plan</h2>
+
+        <div class="pricing-plans">
+          <div class="pricing-card">
+            <h3>Free</h3>
+            <div class="price">$0<span>/month</span></div>
+            <ul class="features">
+              <li>1 postal code search</li>
+              <li>Basic incident data</li>
+              <li>No credit card required</li>
+            </ul>
+            <button class="btn btn-secondary" disabled>Current Plan</button>
+          </div>
+
+          <div class="pricing-card featured">
+            <div class="popular-badge">Most Popular</div>
+            <h3>Pro</h3>
+            <div class="price">$5<span>/month</span></div>
+            <ul class="features">
+              <li>Unlimited searches</li>
+              <li>Full incident history</li>
+              <li>Priority support</li>
+              <li>Cancel anytime</li>
+            </ul>
+            <button class="btn btn-primary" id="upgrade-button">Upgrade Now</button>
+          </div>
         </div>
-        <p id="input-help" class="help-text">Enter a 6-digit Singapore postal code to find the latest incident.</p>
-      </form>
-      <div id="feedback" role="status" aria-live="polite" class="feedback" hidden></div>
-    </section>
+      </div>
+    </div>
 
-    <section class="result-section" aria-labelledby="result-heading">
-      <h2 id="result-heading" class="sr-only">Result</h2>
-      <div id="result-container" class="result-container" aria-live="polite"></div>
-    </section>
+    <!-- Main Content -->
+    <div id="app-content">
+      <section class="search-section" aria-labelledby="search-heading">
+        <h2 id="search-heading" class="sr-only">Search</h2>
 
-    <!-- Dataset removed from DOM; now embedded in script for non-DOM storage. -->
+        <!-- Usage Status -->
+        <div id="usage-status" class="usage-status" hidden></div>
+
+        <form id="search-form" novalidate>
+          <label for="address-input" class="input-label">Singapore Postal Code</label>
+          <div class="input-row">
+            <input id="address-input" name="postal_code" type="text" inputmode="numeric" autocomplete="postal-code" placeholder="e.g. 079903" required aria-required="true" aria-describedby="input-help">
+            <button type="submit" class="btn btn-primary">Search</button>
+          </div>
+          <p id="input-help" class="help-text">Enter a 6-digit Singapore postal code to find the latest incident.</p>
+        </form>
+        <div id="feedback" role="status" aria-live="polite" class="feedback" hidden></div>
+      </section>
+
+      <section class="result-section" aria-labelledby="result-heading">
+        <h2 id="result-heading" class="sr-only">Result</h2>
+        <div id="result-container" class="result-container" aria-live="polite"></div>
+      </section>
+    </div>
   </main>
 
   <footer class="site-footer">

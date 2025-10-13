@@ -14,9 +14,12 @@
     "terser": "^5.36.0"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.2",
     "better-sqlite3": "^11.8.1",
-    "express": "^4.19.2"
+    "cookie-parser": "^1.4.7",
+    "dotenv": "^17.2.3",
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2",
+    "stripe": "^19.1.0"
   }
 }
-
-

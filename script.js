@@ -1,7 +1,247 @@
 (function () {
     'use strict';
 
-    // Frontend no longer contains data; queries backend API only
+    let currentUser = null;
+    let authMode = 'login'; // 'login' or 'register'
+
+    // ===== UTILITY FUNCTIONS =====
+
+    function setFeedback(message, isError = true) {
+        const el = document.getElementById('feedback');
+        if (!el) return;
+        if (!message) {
+            el.hidden = true;
+            el.textContent = '';
+        } else {
+            el.hidden = false;
+            el.textContent = message;
+            el.style.color = isError ? 'var(--danger)' : 'var(--accent-2)';
+        }
+    }
+
+    function showAuthError(message) {
+        const el = document.getElementById('auth-error');
+        if (!el) return;
+        el.textContent = message;
+        el.hidden = false;
+    }
+
+    function hideAuthError() {
+        const el = document.getElementById('auth-error');
+        if (el) el.hidden = true;
+    }
+
+    function showModal(modalId) {
+        const modal = document.getElementById(modalId);
+        if (modal) {
+            modal.hidden = false;
+            modal.style.display = 'flex';
+        }
+    }
+
+    function hideModal(modalId) {
+        const modal = document.getElementById(modalId);
+        if (modal) {
+            modal.hidden = true;
+            modal.style.display = 'none';
+        }
+    }
+
+    // ===== AUTH FUNCTIONS =====
+
+    async function checkAuth() {
+        try {
+            const resp = await fetch('/api/auth/me');
+            if (resp.ok) {
+                currentUser = await resp.json();
+                updateUI();
+                return true;
+            }
+        } catch (e) {
+            console.error('Auth check failed:', e);
+        }
+        currentUser = null;
+        updateUI();
+        return false;
+    }
+
+    async function handleLogin(email, password) {
+        try {
+            const resp = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+            });
+
+            const data = await resp.json();
+
+            if (!resp.ok) {
+                throw new Error(data.error || 'Login failed');
+            }
+
+            currentUser = { user: data.user };
+            hideModal('auth-modal');
+            await checkAuth();
+            setFeedback('Login successful!', false);
+            setTimeout(() => setFeedback(''), 2000);
+        } catch (err) {
+            showAuthError(err.message);
+        }
+    }
+
+    async function handleRegister(email, password) {
+        try {
+            const resp = await fetch('/api/auth/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+            });
+
+            const data = await resp.json();
+
+            if (!resp.ok) {
+                throw new Error(data.error || 'Registration failed');
+            }
+
+            currentUser = { user: data.user };
+            hideModal('auth-modal');
+            await checkAuth();
+            setFeedback('Registration successful!', false);
+            setTimeout(() => setFeedback(''), 2000);
+        } catch (err) {
+            showAuthError(err.message);
+        }
+    }
+
+    async function handleLogout() {
+        try {
+            await fetch('/api/auth/logout', { method: 'POST' });
+            currentUser = null;
+            updateUI();
+            setFeedback('Logged out successfully', false);
+            setTimeout(() => setFeedback(''), 2000);
+        } catch (err) {
+            console.error('Logout error:', err);
+        }
+    }
+
+    // ===== PAYMENT FUNCTIONS =====
+
+    async function handleUpgrade() {
+        try {
+            const resp = await fetch('/api/payment/create-checkout-session', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+
+            const data = await resp.json();
+
+            if (!resp.ok) {
+                throw new Error(data.error || 'Failed to create checkout session');
+            }
+
+            // Redirect to Stripe checkout
+            window.location.href = data.url;
+        } catch (err) {
+            alert('Failed to start checkout: ' + err.message);
+        }
+    }
+
+    // ===== UI FUNCTIONS =====
+
+    function updateUI() {
+        const headerActions = document.getElementById('header-actions');
+        const usageStatus = document.getElementById('usage-status');
+
+        if (!headerActions) return;
+
+        if (currentUser && currentUser.user) {
+            const user = currentUser.user;
+            const tierClass = user.subscription_tier === 'pro' ? 'pro' : 'free';
+            const tierText = user.subscription_tier === 'pro' ? 'PRO' : 'FREE';
+
+            headerActions.innerHTML = `
+                <div class="user-info">
+                    <span>${user.email}</span>
+                    <span class="user-tier ${tierClass}">${tierText}</span>
+                </div>
+                ${user.subscription_tier === 'free' ? '<button class="btn btn-primary btn-small" id="upgrade-header-btn">Upgrade</button>' : ''}
+                <button class="btn btn-secondary btn-small" id="logout-btn">Logout</button>
+            `;
+
+            // Attach event listeners
+            const logoutBtn = document.getElementById('logout-btn');
+            if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
+
+            const upgradeHeaderBtn = document.getElementById('upgrade-header-btn');
+            if (upgradeHeaderBtn) {
+                upgradeHeaderBtn.addEventListener('click', () => showModal('pricing-modal'));
+            }
+
+            // Show usage status for free tier
+            if (usageStatus && user.subscription_tier === 'free') {
+                const remaining = user.usage_limit - user.usage_count;
+                const statusClass = remaining === 0 ? 'danger' : (remaining === 1 ? '' : '');
+
+                usageStatus.className = `usage-status ${statusClass}`;
+                usageStatus.innerHTML = `
+                    <span>Free Tier: ${user.usage_count}/${user.usage_limit} searches used</span>
+                    ${remaining === 0 ? '<strong>Upgrade to continue searching</strong>' : ''}
+                `;
+                usageStatus.hidden = false;
+            } else if (usageStatus) {
+                usageStatus.hidden = true;
+            }
+        } else {
+            headerActions.innerHTML = `
+                <button class="btn btn-secondary btn-small" id="login-btn">Login</button>
+                <button class="btn btn-primary btn-small" id="register-btn">Sign Up</button>
+            `;
+
+            const loginBtn = document.getElementById('login-btn');
+            if (loginBtn) {
+                loginBtn.addEventListener('click', () => {
+                    authMode = 'login';
+                    setupAuthModal();
+                    showModal('auth-modal');
+                });
+            }
+
+            const registerBtn = document.getElementById('register-btn');
+            if (registerBtn) {
+                registerBtn.addEventListener('click', () => {
+                    authMode = 'register';
+                    setupAuthModal();
+                    showModal('auth-modal');
+                });
+            }
+
+            if (usageStatus) usageStatus.hidden = true;
+        }
+    }
+
+    function setupAuthModal() {
+        const title = document.getElementById('auth-modal-title');
+        const submitBtn = document.getElementById('auth-submit');
+        const toggleText = document.getElementById('auth-toggle-text');
+        const toggleLink = document.getElementById('auth-toggle-link');
+
+        if (authMode === 'login') {
+            title.textContent = 'Login';
+            submitBtn.textContent = 'Login';
+            toggleText.textContent = "Don't have an account?";
+            toggleLink.textContent = 'Sign up';
+        } else {
+            title.textContent = 'Sign Up';
+            submitBtn.textContent = 'Sign Up';
+            toggleText.textContent = 'Already have an account?';
+            toggleLink.textContent = 'Login';
+        }
+
+        hideAuthError();
+    }
+
+    // ===== SEARCH FUNCTIONS =====
 
     function renderResults(container, data) {
         if (!container) return;
@@ -68,48 +308,132 @@
         container.appendChild(card);
     }
 
-    function setFeedback(message) {
-        var el = document.getElementById('feedback');
-        if (!el) return;
-        if (!message) {
-            el.hidden = true;
-            el.textContent = '';
-        } else {
-            el.hidden = false;
-            el.textContent = message;
+    async function handleSearch(postalCode) {
+        const resultContainer = document.getElementById('result-container');
+
+        if (!currentUser) {
+            setFeedback('Please login to search incidents');
+            showModal('auth-modal');
+            return;
+        }
+
+        try {
+            const resp = await fetch('/api/incidents?postal_code=' + encodeURIComponent(postalCode));
+
+            if (resp.status === 429) {
+                const data = await resp.json();
+                setFeedback(data.message);
+                showModal('pricing-modal');
+                return;
+            }
+
+            if (!resp.ok) {
+                throw new Error('Network error');
+            }
+
+            const data = await resp.json();
+            renderResults(resultContainer, data);
+
+            // Update usage display
+            if (data.usage && currentUser) {
+                currentUser.user.usage_count = data.usage.count;
+                updateUI();
+            }
+        } catch (e) {
+            setFeedback('Failed to fetch data. Please try again.');
         }
     }
 
+    // ===== INITIALIZATION =====
+
     function onReady() {
-        var records = null; // data fetched from backend
-        var form = document.getElementById('search-form');
-        var input = document.getElementById('address-input');
-        var resultContainer = document.getElementById('result-container');
+        const form = document.getElementById('search-form');
+        const input = document.getElementById('address-input');
+        const authForm = document.getElementById('auth-form');
+        const authToggleLink = document.getElementById('auth-toggle-link');
+        const closeModal = document.getElementById('close-modal');
+        const closePricingModal = document.getElementById('close-pricing-modal');
+        const upgradeButton = document.getElementById('upgrade-button');
 
-        if (!form || !input || !resultContainer) return;
+        // Check authentication status
+        checkAuth();
 
-        form.addEventListener('submit', async function (ev) {
-            ev.preventDefault();
-            var value = input.value;
+        // Check for payment success/cancel
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('payment') === 'success') {
+            setFeedback('Payment successful! Your account has been upgraded.', false);
+            setTimeout(() => {
+                checkAuth();
+                window.history.replaceState({}, document.title, '/');
+            }, 2000);
+        } else if (urlParams.get('payment') === 'cancelled') {
+            setFeedback('Payment cancelled', true);
+            setTimeout(() => {
+                window.history.replaceState({}, document.title, '/');
+            }, 2000);
+        }
 
-            if (!value || !value.trim()) {
-                setFeedback('Please enter a postal code to search.');
-                renderResults(resultContainer, null);
-                return;
-            }
-            setFeedback('');
+        // Search form
+        if (form && input) {
+            form.addEventListener('submit', function (ev) {
+                ev.preventDefault();
+                var value = input.value.trim();
 
-            try {
-                var resp = await fetch('/api/incidents?postal_code=' + encodeURIComponent(value));
-                if (!resp.ok) throw new Error('Network error');
-                var data = await resp.json();
-                renderResults(resultContainer, data);
-            } catch (e) {
-                setFeedback('Failed to fetch data. Please try again.');
+                if (!value) {
+                    setFeedback('Please enter a postal code to search.');
+                    return;
+                }
+
+                setFeedback('');
+                handleSearch(value);
+            });
+        }
+
+        // Auth form
+        if (authForm) {
+            authForm.addEventListener('submit', async function (ev) {
+                ev.preventDefault();
+                const email = document.getElementById('auth-email').value;
+                const password = document.getElementById('auth-password').value;
+
+                if (authMode === 'login') {
+                    await handleLogin(email, password);
+                } else {
+                    await handleRegister(email, password);
+                }
+            });
+        }
+
+        // Auth toggle
+        if (authToggleLink) {
+            authToggleLink.addEventListener('click', function (ev) {
+                ev.preventDefault();
+                authMode = authMode === 'login' ? 'register' : 'login';
+                setupAuthModal();
+            });
+        }
+
+        // Close modals
+        if (closeModal) {
+            closeModal.addEventListener('click', () => hideModal('auth-modal'));
+        }
+
+        if (closePricingModal) {
+            closePricingModal.addEventListener('click', () => hideModal('pricing-modal'));
+        }
+
+        // Close modal on outside click
+        window.addEventListener('click', function (ev) {
+            if (ev.target.classList.contains('modal')) {
+                ev.target.hidden = true;
+                ev.target.style.display = 'none';
             }
         });
 
-        form.dispatchEvent(new Event('submit'));
+        // Upgrade button
+        if (upgradeButton) {
+            upgradeButton.addEventListener('click', handleUpgrade);
+        }
     }
 
     if (document.readyState === 'loading') {
@@ -118,5 +442,3 @@
         onReady();
     }
 })();
-
-
