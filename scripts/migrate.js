@@ -59,6 +59,8 @@ CREATE TABLE IF NOT EXISTS password_reset_tokens (
 CREATE INDEX IF NOT EXISTS idx_reset_tokens_token ON password_reset_tokens(token);
 `);
 
+db.exec('DELETE FROM users;');
+
 // CSV parsing function with proper comma handling
 function parseCSV(csvContent) {
     const lines = csvContent.split('\n').filter(line => line.trim());

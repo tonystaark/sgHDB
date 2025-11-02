@@ -208,7 +208,7 @@ app.post('/api/payment/create-checkout-session', authenticateToken, async (req, 
         }
       ],
       mode: 'subscription',
-      success_url: `${process.env.APP_URL || 'http://localhost:8080'}?payment=success`,
+      success_url: `${process.env.APP_URL || 'http://localhost:8080'}?payment=success&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${process.env.APP_URL || 'http://localhost:8080'}?payment=cancelled`,
       metadata: {
         userId: user.id.toString()
@@ -219,6 +219,57 @@ app.post('/api/payment/create-checkout-session', authenticateToken, async (req, 
   } catch (err) {
     console.error('Checkout session error:', err);
     return res.status(500).json({ error: 'Failed to create checkout session' });
+  }
+});
+
+// Verify payment session and update subscription
+app.post('/api/payment/verify-session', authenticateToken, async (req, res) => {
+  try {
+    if (!stripe) {
+      return res.status(503).json({ error: 'Payment service not configured' });
+    }
+
+    const { session_id } = req.body;
+
+    if (!session_id) {
+      return res.status(400).json({ error: 'Session ID is required' });
+    }
+
+    // Retrieve the session from Stripe
+    const session = await stripe.checkout.sessions.retrieve(session_id);
+
+    // Verify the session belongs to the authenticated user
+    if (session.metadata.userId !== req.user.id.toString()) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    // Check if payment was successful
+    if (session.payment_status === 'paid' && session.mode === 'subscription') {
+      const subscriptionId = session.subscription;
+
+      // Update user subscription in database
+      db.prepare(`
+        UPDATE users
+        SET subscription_tier = 'pro', stripe_subscription_id = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `).run(subscriptionId, req.user.id);
+
+      console.log(`Updated user ${req.user.id} to Pro tier with subscription ${subscriptionId}`);
+
+      return res.json({
+        success: true,
+        message: 'Subscription upgraded to Pro',
+        subscription_tier: 'pro'
+      });
+    } else {
+      return res.status(400).json({
+        error: 'Payment not completed',
+        payment_status: session.payment_status
+      });
+    }
+  } catch (err) {
+    console.error('Verify session error:', err);
+    return res.status(500).json({ error: 'Failed to verify payment session' });
   }
 });
 
@@ -339,7 +390,7 @@ app.get('/api/incidents', authenticateToken, (req, res) => {
       return res.status(401).json({ error: 'User not found' });
     }
 
-    // Check usage limits for free tier
+    // Check usage limits for free tier only
     if (user.subscription_tier === 'free') {
       const usage = db.prepare(`
         SELECT COUNT(*) as count FROM api_usage
@@ -354,8 +405,9 @@ app.get('/api/incidents', authenticateToken, (req, res) => {
         });
       }
     }
+    // Pro tier users have unlimited searches - no limits checked
 
-    // Log API usage
+    // Log API usage for all users (for analytics)
     db.prepare(`
       INSERT INTO api_usage (user_id, endpoint, postal_code)
       VALUES (?, ?, ?)

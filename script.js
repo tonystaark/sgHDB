@@ -32,6 +32,16 @@
     }
 
     function showModal(modalId) {
+        // Prevent showing auth modal if user is already logged in
+        if (modalId === 'auth-modal' && currentUser) {
+            return;
+        }
+
+        // Prevent showing pricing modal if user is already on Pro tier
+        if (modalId === 'pricing-modal' && currentUser && currentUser.user && currentUser.user.subscription_tier === 'pro') {
+            return;
+        }
+
         const modal = document.getElementById(modalId);
         if (modal) {
             modal.hidden = false;
@@ -62,6 +72,12 @@
         }
         currentUser = null;
         updateUI();
+
+        // Show login modal if user is not logged in
+        authMode = 'login';
+        setupAuthModal();
+        showModal('auth-modal');
+
         return false;
     }
 
@@ -165,7 +181,7 @@
                     <span>${user.email}</span>
                     <span class="user-tier ${tierClass}">${tierText}</span>
                 </div>
-                ${user.subscription_tier === 'free' ? '<button class="btn btn-primary btn-small" id="upgrade-header-btn">Upgrade</button>' : ''}
+                ${user.subscription_tier === 'free' ? '<button class="btn btn-primary btn-small" id="upgrade-header-btn">Upgrade</button>' : '<button class="btn btn-secondary btn-small" id="cancel-subscription-btn">Cancel Subscription</button>'}
                 <button class="btn btn-secondary btn-small" id="logout-btn">Logout</button>
             `;
 
@@ -176,6 +192,13 @@
             const upgradeHeaderBtn = document.getElementById('upgrade-header-btn');
             if (upgradeHeaderBtn) {
                 upgradeHeaderBtn.addEventListener('click', () => showModal('pricing-modal'));
+            }
+
+            hideModal('auth-modal');
+            console.log('user', user);
+            // Hide pricing modal if user is on Pro tier
+            if (user.subscription_tier === 'pro') {
+                hideModal('pricing-modal');
             }
 
             // Show usage status for free tier
@@ -225,17 +248,20 @@
         const submitBtn = document.getElementById('auth-submit');
         const toggleText = document.getElementById('auth-toggle-text');
         const toggleLink = document.getElementById('auth-toggle-link');
+        const forgotPasswordMessage = document.getElementById('forgot-password-message');
 
         if (authMode === 'login') {
             title.textContent = 'Login';
             submitBtn.textContent = 'Login';
             toggleText.textContent = "Don't have an account?";
             toggleLink.textContent = 'Sign up';
+            if (forgotPasswordMessage) forgotPasswordMessage.hidden = false;
         } else {
             title.textContent = 'Sign Up';
             submitBtn.textContent = 'Sign Up';
             toggleText.textContent = 'Already have an account?';
             toggleLink.textContent = 'Login';
+            if (forgotPasswordMessage) forgotPasswordMessage.hidden = true;
         }
 
         hideAuthError();
@@ -361,11 +387,41 @@
         // Check for payment success/cancel
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.get('payment') === 'success') {
-            setFeedback('Payment successful! Your account has been upgraded.', false);
-            setTimeout(() => {
-                checkAuth();
-                window.history.replaceState({}, document.title, '/');
-            }, 2000);
+            const sessionId = urlParams.get('session_id');
+            hideModal('pricing-modal');
+
+            if (sessionId) {
+                // Verify payment and update subscription
+                setFeedback('Verifying payment...', false);
+
+                fetch('/api/payment/verify-session', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ session_id: sessionId })
+                })
+                .then(resp => resp.json())
+                .then(data => {
+                    if (data.success) {
+                        setFeedback('Payment successful! Your account has been upgraded to Pro.', false);
+                        setTimeout(() => {
+                            checkAuth();
+                            window.history.replaceState({}, document.title, '/');
+                        }, 2000);
+                    } else {
+                        setFeedback('Payment verification failed. Please contact support.', true);
+                    }
+                })
+                .catch(err => {
+                    console.error('Verification error:', err);
+                    setFeedback('Payment verification failed. Please refresh the page.', true);
+                });
+            } else {
+                setFeedback('Payment successful! Your account has been upgraded.', false);
+                setTimeout(() => {
+                    checkAuth();
+                    window.history.replaceState({}, document.title, '/');
+                }, 2000);
+            }
         } else if (urlParams.get('payment') === 'cancelled') {
             setFeedback('Payment cancelled', true);
             setTimeout(() => {
