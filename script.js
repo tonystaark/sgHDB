@@ -163,6 +163,33 @@
         }
     }
 
+    async function handleCancelSubscription() {
+        if (!confirm('Are you sure you want to cancel your Pro subscription? You will lose unlimited searches.')) {
+            return;
+        }
+
+        try {
+            const resp = await fetch('/api/payment/cancel-subscription', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+
+            const data = await resp.json();
+
+            if (!resp.ok) {
+                throw new Error(data.error || 'Failed to cancel subscription');
+            }
+
+            setFeedback('Subscription cancelled successfully. You are now on the free tier.', false);
+            setTimeout(() => {
+                checkAuth();
+                setFeedback('');
+            }, 2000);
+        } catch (err) {
+            alert('Failed to cancel subscription: ' + err.message);
+        }
+    }
+
     // ===== UI FUNCTIONS =====
 
     function updateUI() {
@@ -192,6 +219,11 @@
             const upgradeHeaderBtn = document.getElementById('upgrade-header-btn');
             if (upgradeHeaderBtn) {
                 upgradeHeaderBtn.addEventListener('click', () => showModal('pricing-modal'));
+            }
+
+            const cancelSubscriptionBtn = document.getElementById('cancel-subscription-btn');
+            if (cancelSubscriptionBtn) {
+                cancelSubscriptionBtn.addEventListener('click', handleCancelSubscription);
             }
 
             hideModal('auth-modal');
